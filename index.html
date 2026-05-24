@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendario Colaborativo - Respira con Fanny</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            /* Colores de marca por defecto (Turquesa/Cian Médico) */
+            --brand: #0891b2; 
+            --brand-hover: #164e63;
+            --brand-light: #cffafe;
+            --brand-text: #083344;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f8fafc;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .color-picker {
+            -webkit-appearance: none; border: none; width: 32px; height: 32px;
+            border-radius: 50%; cursor: pointer; padding: 0; overflow: hidden;
+        }
+        .color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+        .color-picker::-webkit-color-swatch { border: none; border-radius: 50%; }
+        
+        .color-picker-large {
+            -webkit-appearance: none; border: none; width: 100%; height: 48px;
+            border-radius: 0.5rem; cursor: pointer; padding: 0; overflow: hidden;
+        }
+        .color-picker-large::-webkit-color-swatch-wrapper { padding: 0; }
+        .color-picker-large::-webkit-color-swatch { border: none; border-radius: 0.5rem; }
+
+        .spinner {
+            border: 3px solid rgba(8, 145, 178, 0.1); /* Usa un color base neutral/brand */
+            border-left-color: var(--brand);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Estilo para el hover de la foto de perfil */
+        .profile-pic-container:hover .profile-edit-overlay {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="flex h-screen text-slate-800">
+
+    <!-- 1. BARRA LATERAL -->
+    <aside class="w-[280px] h-full bg-white border-r border-slate-200 fixed left-0 top-0 flex flex-col shadow-sm z-10">
+        <div class="p-8 flex flex-col items-center border-b border-slate-100 relative group profile-pic-container">
+            <!-- Botón de edición de marca que aparece en hover -->
+            <button onclick="openBrandModal()" class="profile-edit-overlay absolute top-10 right-10 bg-white p-2 rounded-full shadow-lg opacity-0 transition-opacity duration-200 text-slate-700 hover:text-[var(--brand)] z-20" title="Configurar Marca">
+                <i data-lucide="camera" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Foto de Fanny Dinámica -->
+            <div class="w-32 h-32 rounded-full bg-slate-100 flex items-center justify-center mb-4 shadow-inner overflow-hidden border-4 border-white shadow-md relative cursor-pointer" onclick="openBrandModal()">
+                <img id="sidebar-logo" src="Foto Final.jpg" alt="Logo de Marca" class="w-full h-full object-cover" onerror="this.src='https://ui-avatars.com/api/?name=Fanny&background=random&size=128';">
+                <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <span class="text-white text-xs font-semibold">Editar</span>
+                </div>
+            </div>
+            <h1 class="text-xl font-bold text-slate-800 text-center">Respira con Fanny</h1>
+            <p class="text-xs text-slate-500 uppercase tracking-widest mt-1">Content Calendar</p>
+            <div id="sync-status" class="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
+                <div class="spinner w-3 h-3 border-2"></div> Conectando...
+            </div>
+        </div>
+
+        <div class="p-6 flex-1 flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Pilares</h2>
+                <button onclick="openPillarModal()" class="text-[var(--brand)] hover:text-[var(--brand-hover)] p-1 rounded-md hover:bg-[var(--brand-light)] transition-colors" title="Gestionar Pilares">
+                    <i data-lucide="settings-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <ul id="sidebar-pillars" class="space-y-3 flex-1 overflow-y-auto">
+                <!-- Se inyectan por JS -->
+            </ul>
+        </div>
+        
+        <div class="p-6 text-center text-xs text-slate-400 border-t border-slate-100 flex items-center justify-center gap-2">
+            <i data-lucide="cloud" class="w-4 h-4 text-emerald-500"></i> Workspace Sincronizado
+        </div>
+    </aside>
+
+    <!-- 2. ÁREA CENTRAL -->
+    <main class="h-full ml-[280px] flex-1 p-8 flex flex-col overflow-hidden">
+        <header class="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex-shrink-0">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="calendar-days" class="text-[var(--brand)]"></i>
+                    Planificación <span id="current-year-display">2026</span>
+                </h2>
+                <p class="text-slate-500 text-sm mt-1">Gestiona, añade y colabora en tiempo real.</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <!-- Selector de Vista -->
+                <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button onclick="setView('calendar')" id="btn-view-calendar" class="p-1.5 px-3 rounded-md bg-white shadow-sm text-[var(--brand)] font-medium text-sm transition-all flex items-center gap-1.5">
+                        <i data-lucide="layout-grid" class="w-4 h-4"></i> Calendario
+                    </button>
+                    <button onclick="setView('list')" id="btn-view-list" class="p-1.5 px-3 rounded-md text-slate-500 hover:text-[var(--brand)] font-medium text-sm transition-all flex items-center gap-1.5">
+                        <i data-lucide="list" class="w-4 h-4"></i> Lista
+                    </button>
+                </div>
+
+                <!-- Selectores Dinámicos -->
+                <select id="year-selector" class="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg p-2.5 font-medium outline-none cursor-pointer focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)]">
+                    <option value="2026" selected>2026</option>
+                    <option value="2027">2027</option>
+                </select>
+                <select id="month-selector" class="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg p-2.5 font-medium outline-none cursor-pointer min-w-[120px] focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)]">
+                    <!-- Generado por JS -->
+                </select>
+
+                <button onclick="openNewPostPanel()" class="bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm ml-2">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Nuevo Post
+                </button>
+            </div>
+        </header>
+
+        <!-- VISTA: CALENDARIO -->
+        <div id="view-calendar-container" class="flex-1 flex flex-col overflow-hidden fade-in">
+            <div class="grid grid-cols-7 gap-3 mb-2 text-center flex-shrink-0">
+                <div class="font-semibold text-slate-400 text-xs uppercase tracking-wide">Dom</div>
+                <div class="font-semibold text-slate-400 text-xs uppercase tracking-wide">Lun</div>
+                <div class="font-semibold text-slate-400 text-xs uppercase tracking-wide">Mar</div>
+                <div class="font-semibold text-slate-400 text-xs uppercase tracking-wide">Mié</div>
+                <div class="font-semibold text-slate-400 text-xs uppercase tracking-wide">Jue</div>
+                <div class="font-semibold text-slate-400 text-xs uppercase tracking-wide">Vie</div>
+                <div class="font-semibold text-slate-400 text-xs uppercase tracking-wide">Sáb</div>
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-7 gap-3 flex-1 overflow-y-auto pb-8 pr-2">
+                <!-- Días dinámicos -->
+            </div>
+        </div>
+
+        <!-- VISTA: LISTA -->
+        <div id="view-list-container" class="flex-1 overflow-y-auto pb-8 pr-2 hidden fade-in">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <table class="w-full text-left text-sm text-slate-600">
+                    <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-xs font-semibold">
+                        <tr>
+                            <th class="px-6 py-4 w-32">Fecha</th>
+                            <th class="px-6 py-4 w-32">Formato</th>
+                            <th class="px-6 py-4 w-40">Pilar</th>
+                            <th class="px-6 py-4">Título / Tema</th>
+                            <th class="px-6 py-4 text-center w-24">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="list-grid" class="divide-y divide-slate-100">
+                        <!-- Items de lista -->
+                    </tbody>
+                </table>
+                <div id="list-empty-state" class="hidden flex flex-col items-center justify-center p-12 text-slate-400">
+                    <i data-lucide="inbox" class="w-12 h-12 mb-3 opacity-50"></i>
+                    <p>No hay publicaciones en este mes.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 3. PANEL LATERAL (POSTS) -->
+    <div id="side-panel" class="fixed top-0 right-0 w-[450px] h-full bg-white shadow-2xl border-l border-slate-200 transform translate-x-[100%] transition-transform duration-300 ease-in-out z-50 flex flex-col">
+        
+        <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
+            <h3 id="panel-main-title" class="text-lg font-bold text-slate-800">Detalle de Publicación</h3>
+            <button onclick="closePanel()" class="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-200 rounded-full transition-colors">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <!-- MODO VISTA -->
+        <div id="panel-view" class="p-6 flex-1 overflow-y-auto space-y-6 hidden">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-[var(--brand)] font-medium text-sm">
+                    <i data-lucide="calendar" class="w-4 h-4"></i>
+                    <span id="view-date"></span>
+                </div>
+                <span id="view-format" class="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full border border-slate-200"></span>
+            </div>
+            <div>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Pilar</span>
+                <span id="view-pillar" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white shadow-sm"></span>
+            </div>
+            <div>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Tema Principal</span>
+                <h4 id="view-title" class="text-xl font-bold text-slate-800 leading-tight"></h4>
+            </div>
+            <div>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Redacción / Copy</span>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <p id="view-copy" class="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed"></p>
+                </div>
+            </div>
+            <div>
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Notas / Observaciones</span>
+                <div class="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                    <p id="view-notes" class="text-sm text-yellow-800 whitespace-pre-wrap leading-relaxed italic"></p>
+                </div>
+            </div>
+            <div class="pt-4 flex gap-3 border-t border-slate-100 mt-auto">
+                <button onclick="toggleEditMode()" class="flex-1 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white py-2.5 rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i> Editar
+                </button>
+                <button onclick="confirmDeletePost()" class="px-4 bg-white border border-red-200 hover:bg-red-50 text-red-600 py-2.5 rounded-lg text-sm font-medium transition-colors flex justify-center items-center">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- MODO EDICIÓN / NUEVO -->
+        <div id="panel-edit" class="p-6 flex-1 overflow-y-auto space-y-4 hidden bg-white">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Título del Post</label>
+                <input type="text" id="edit-title" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)] outline-none">
+            </div>
+            <div class="flex gap-4">
+                <div class="flex-1">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Fecha</label>
+                    <input type="date" id="edit-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)] outline-none">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Formato</label>
+                    <select id="edit-format" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)] outline-none">
+                        <option value="🎥 Reel">🎥 Reel</option>
+                        <option value="🖼️ Post">🖼️ Post</option>
+                        <option value="⏳ Story">⏳ Story</option>
+                        <option value="🎠 Carrusel">🎠 Carrusel</option>
+                        <option value="🎙️ Podcast">🎙️ Podcast</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Pilar Estratégico</label>
+                <select id="edit-pillar" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)] outline-none">
+                    <!-- Dinámico -->
+                </select>
+            </div>
+            <div class="flex flex-col">
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Copy / Texto principal</label>
+                <textarea id="edit-copy" rows="5" class="w-full flex-1 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-slate-800 text-sm focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)] outline-none resize-none"></textarea>
+            </div>
+            <div class="flex flex-col pb-4">
+                <label class="block text-xs font-semibold text-yellow-600 uppercase tracking-wider mb-1.5">Notas / Referencias Visuales</label>
+                <textarea id="edit-notes" rows="3" class="w-full flex-1 bg-yellow-50 border border-yellow-300 rounded-lg px-4 py-3 text-slate-800 text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none resize-none" placeholder="Links de inspiración, detalles de edición de video, etc."></textarea>
+            </div>
+            <div class="pt-4 border-t border-slate-100 flex gap-3">
+                <button onclick="savePost()" class="flex-1 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white py-2.5 rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i> Guardar en la Nube
+                </button>
+                <button onclick="cancelEdit()" class="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MODAL DE PILARES -->
+    <div id="pillar-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] hidden flex justify-center items-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform scale-95 transition-transform duration-300" id="pillar-modal-content">
+            <div class="flex justify-between items-center p-6 border-b border-slate-100">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="layers" class="text-[var(--brand)]"></i> Gestionar Pilares
+                </h3>
+                <button onclick="closePillarModal()" class="text-slate-400 hover:text-slate-800 transition-colors">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="p-6 bg-slate-50">
+                <div class="flex gap-3 mb-6">
+                    <input type="text" id="new-pillar-name" placeholder="Nombre del nuevo pilar" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--brand)]">
+                    <input type="color" id="new-pillar-color" value="#10b981" class="color-picker border border-slate-300 shadow-sm">
+                    <button onclick="addNewPillar()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        Añadir
+                    </button>
+                </div>
+                <div class="space-y-3 max-h-60 overflow-y-auto pr-2" id="pillar-edit-list">
+                    <!-- Lista de pilares a editar -->
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end bg-white">
+                <button onclick="closePillarModal()" class="bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                    Listo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIGURACIÓN DE MARCA (NUEVO) -->
+    <div id="brand-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[80] hidden flex justify-center items-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform scale-95 transition-transform duration-300" id="brand-modal-content">
+            <div class="flex justify-between items-center p-6 border-b border-slate-100">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="palette" class="text-[var(--brand)]"></i> Configuración de Marca
+                </h3>
+                <button onclick="closeBrandModal()" class="text-slate-400 hover:text-slate-800 transition-colors">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-6">
+                <!-- Subir Foto / Logo -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Foto de Perfil / Logo</label>
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 rounded-full border border-slate-200 overflow-hidden shadow-sm flex-shrink-0">
+                            <img id="brand-preview-logo" src="Foto Final.jpg" class="w-full h-full object-cover">
+                        </div>
+                        <div class="flex-1">
+                            <label for="brand-upload-input" class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg text-xs font-medium transition-colors border border-slate-200 block text-center">
+                                Seleccionar archivo...
+                            </label>
+                            <input type="file" id="brand-upload-input" accept="image/*" class="hidden" onchange="handleLogoUpload(event)">
+                            <p class="text-[10px] text-slate-400 mt-1 text-center">Se recomienda JPG o PNG cuadrado.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Color Principal de la Interfaz -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Color Principal de la Interfaz</label>
+                    <p class="text-xs text-slate-500 mb-2">Elige el color para botones, iconos y detalles basado en tu logo.</p>
+                    <input type="color" id="brand-color-input" value="#0891b2" class="color-picker-large border border-slate-200 shadow-sm" onchange="previewBrandColor(this.value)">
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex gap-3 bg-slate-50">
+                <button onclick="closeBrandModal()" class="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    Cancelar
+                </button>
+                <button onclick="saveBrandSettings()" class="flex-1 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    Guardar Marca
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. MODAL DE CONFIRMACIÓN CUSTOM -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] hidden flex justify-center items-center opacity-0 transition-opacity duration-200">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center transform scale-95 transition-transform duration-200" id="confirm-content">
+            <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 mb-2" id="confirm-title">¿Eliminar?</h3>
+            <p class="text-slate-500 text-sm mb-6" id="confirm-msg">Esta acción no se puede deshacer.</p>
+            <div class="flex gap-3">
+                <button onclick="closeConfirmModal()" class="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 py-2 rounded-lg text-sm font-medium transition-colors">Cancelar</button>
+                <button id="confirm-action-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-medium transition-colors">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="panel-overlay" class="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300" onclick="closePanel()"></div>
+
+    <!-- Firebase SDK (Módulos JS) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- INICIALIZACIÓN DE FIREBASE ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'respira-fanny-calendar';
+        
+        // Rutas públicas
+        const basePath = ['artifacts', appId, 'public', 'data'];
+        const postsRef = collection(db, ...basePath, 'posts');
+        const pillarsRef = collection(db, ...basePath, 'pillars');
+        const settingsRef = doc(db, ...basePath, 'settings', 'brand');
+
+        // Estado de la App
+        window.appState = {
+            pillars: [],
+            posts: [],
+            brand: {
+                logoBase64: 'Foto Final.jpg',
+                mainColor: '#0891b2' // Turquesa por defecto
+            },
+            currentEditingId: null,
+            viewMode: 'calendar'
+        };
+
+        const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        // Utilidad para oscurecer colores (para botones hover)
+        function adjustColor(color, amount) {
+            return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+        }
+
+        // Aplicar configuraciones de marca al CSS
+        window.applyBrandSettings = function(color, logo) {
+            document.documentElement.style.setProperty('--brand', color);
+            document.documentElement.style.setProperty('--brand-hover', adjustColor(color, -20)); // Oscurecer un poco
+            document.documentElement.style.setProperty('--brand-light', color + '1A'); // 10% opacidad para fondos
+            
+            document.getElementById('sidebar-logo').src = logo || 'https://ui-avatars.com/api/?name=Fanny&background=random&size=128';
+            document.getElementById('brand-preview-logo').src = logo || 'https://ui-avatars.com/api/?name=Fanny&background=random&size=128';
+            document.getElementById('brand-color-input').value = color;
+        }
+
+        // Autenticación
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch(e) { console.error("Error Auth", e); }
+        }
+
+        initAuth();
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // Escuchar configuraciones de marca
+                onSnapshot(settingsRef, (docSnapshot) => {
+                    if (docSnapshot.exists()) {
+                        const data = docSnapshot.data();
+                        window.appState.brand.logoBase64 = data.logoBase64 || window.appState.brand.logoBase64;
+                        window.appState.brand.mainColor = data.mainColor || window.appState.brand.mainColor;
+                        applyBrandSettings(window.appState.brand.mainColor, window.appState.brand.logoBase64);
+                    }
+                });
+
+                // Escuchar Pilares
+                onSnapshot(pillarsRef, (snapshot) => {
+                    window.appState.pillars = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    if(window.appState.pillars.length === 0) seedDefaultPillars();
+                    renderSidebar();
+                    if(window.appState.pillars.length > 0) renderCurrentView();
+                });
+
+                // Escuchar Posts
+                onSnapshot(postsRef, (snapshot) => {
+                    window.appState.posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderCurrentView();
+                    const status = document.getElementById('sync-status');
+                    status.innerHTML = `<i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-500"></i> Conectado`;
+                    status.classList.add('text-emerald-600');
+                    lucide.createIcons();
+                });
+            }
+        });
+
+        async function seedDefaultPillars() {
+            const defaults = [
+                { id: 'pil_identidad', name: 'Identidad', color: '#FBBF24' },
+                { id: 'pil_educacion', name: 'Educación', color: '#3B82F6' },
+                { id: 'pil_performance', name: 'Performance', color: '#A855F7' }
+            ];
+            for (let p of defaults) {
+                await setDoc(doc(db, ...basePath, 'pillars', p.id), { name: p.name, color: p.color });
+            }
+        }
+
+        // --- GESTIÓN DE MARCA (SETTINGS) ---
+        const bModal = document.getElementById('brand-modal');
+        const bModalContent = document.getElementById('brand-modal-content');
+        let tempBrandColor = '#0891b2';
+        let tempLogoBase64 = null;
+
+        window.openBrandModal = function() {
+            tempBrandColor = window.appState.brand.mainColor;
+            tempLogoBase64 = window.appState.brand.logoBase64;
+            
+            document.getElementById('brand-color-input').value = tempBrandColor;
+            document.getElementById('brand-preview-logo').src = tempLogoBase64;
+
+            bModal.classList.remove('hidden');
+            setTimeout(() => {
+                bModal.classList.remove('opacity-0');
+                bModalContent.classList.remove('scale-95');
+            }, 10);
+        }
+
+        window.closeBrandModal = function() {
+            // Revertir vista previa si cancela
+            applyBrandSettings(window.appState.brand.mainColor, window.appState.brand.logoBase64);
+            
+            bModal.classList.add('opacity-0');
+            bModalContent.classList.add('scale-95');
+            setTimeout(() => bModal.classList.add('hidden'), 300);
+        }
+
+        window.handleLogoUpload = function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    tempLogoBase64 = e.target.result;
+                    document.getElementById('brand-preview-logo').src = tempLogoBase64;
+                }
+                // Reducir tamaño por seguridad en Firestore si es muy pesada.
+                reader.readAsDataURL(file);
+            }
+        }
+
+        window.previewBrandColor = function(color) {
+            tempBrandColor = color;
+            applyBrandSettings(color, tempLogoBase64 || window.appState.brand.logoBase64);
+        }
+
+        window.saveBrandSettings = async function() {
+            if (!auth.currentUser) return;
+            try {
+                await setDoc(settingsRef, {
+                    logoBase64: tempLogoBase64 || window.appState.brand.logoBase64,
+                    mainColor: tempBrandColor
+                });
+                closeBrandModal();
+            } catch (e) {
+                console.error("Error guardando marca", e);
+                alert("La imagen es demasiado pesada para guardar en la nube (límite 1MB). Intenta con un logo más comprimido.");
+            }
+        }
+
+        // --- GENERADOR DE MESES ---
+        function initMonthSelector() {
+            const select = document.getElementById('month-selector');
+            select.innerHTML = '';
+            mesesNombres.forEach((mes, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.text = mes;
+                select.appendChild(opt);
+            });
+            select.value = "5"; 
+            document.getElementById('year-selector').value = "2026";
+            
+            select.addEventListener('change', renderCurrentView);
+            document.getElementById('year-selector').addEventListener('change', renderCurrentView);
+        }
+
+        // --- LÓGICA DE INTERFAZ GLOBAL ---
+        window.setView = function(mode) {
+            window.appState.viewMode = mode;
+            const btnCal = document.getElementById('btn-view-calendar');
+            const btnList = document.getElementById('btn-view-list');
+            const contCal = document.getElementById('view-calendar-container');
+            const contList = document.getElementById('view-list-container');
+
+            if(mode === 'calendar') {
+                btnCal.className = "p-1.5 px-3 rounded-md bg-white shadow-sm text-[var(--brand)] font-medium text-sm transition-all flex items-center gap-1.5";
+                btnList.className = "p-1.5 px-3 rounded-md text-slate-500 hover:text-[var(--brand)] font-medium text-sm transition-all flex items-center gap-1.5";
+                contCal.classList.remove('hidden');
+                contList.classList.add('hidden');
+            } else {
+                btnList.className = "p-1.5 px-3 rounded-md bg-white shadow-sm text-[var(--brand)] font-medium text-sm transition-all flex items-center gap-1.5";
+                btnCal.className = "p-1.5 px-3 rounded-md text-slate-500 hover:text-[var(--brand)] font-medium text-sm transition-all flex items-center gap-1.5";
+                contList.classList.remove('hidden');
+                contCal.classList.add('hidden');
+            }
+            renderCurrentView();
+        }
+
+        window.renderCurrentView = function() {
+            if(window.appState.viewMode === 'calendar') renderCalendar();
+            else renderList();
+            lucide.createIcons();
+        }
+
+        // Utilidades Visuales
+        function getPillar(id) {
+            return window.appState.pillars.find(p => p.id === id) || { name: 'Sin Pilar', color: '#94a3b8' };
+        }
+        function getContrastYIQ(hexcolor){
+            hexcolor = hexcolor.replace("#", "");
+            if(hexcolor.length === 3) hexcolor = hexcolor[0]+hexcolor[0]+hexcolor[1]+hexcolor[1]+hexcolor[2]+hexcolor[2];
+            var r = parseInt(hexcolor.substr(0,2),16);
+            var g = parseInt(hexcolor.substr(2,2),16);
+            var b = parseInt(hexcolor.substr(4,2),16);
+            var yiq = ((r*299)+(g*587)+(b*114))/1000;
+            return (yiq >= 128) ? 'text-slate-800' : 'text-white';
+        }
+
+        // --- RENDERIZADORES ---
+        window.renderSidebar = function() {
+            const list = document.getElementById('sidebar-pillars');
+            list.innerHTML = '';
+            window.appState.pillars.forEach(pillar => {
+                list.innerHTML += `
+                    <li class="flex items-center gap-3 fade-in">
+                        <span class="w-4 h-4 rounded-full shadow-sm border border-black/10" style="background-color: ${pillar.color}"></span>
+                        <span class="font-medium text-slate-700 text-sm">${pillar.name}</span>
+                    </li>
+                `;
+            });
+            renderPillarSelect();
+        }
+
+        window.renderPillarSelect = function() {
+            const select = document.getElementById('edit-pillar');
+            const currentVal = select.value;
+            select.innerHTML = '';
+            window.appState.pillars.forEach(pillar => {
+                select.innerHTML += `<option value="${pillar.id}">${pillar.name}</option>`;
+            });
+            if(currentVal && window.appState.pillars.find(p => p.id === currentVal)) select.value = currentVal;
+        }
+
+        window.renderCalendar = function() {
+            const year = parseInt(document.getElementById('year-selector').value);
+            const month = parseInt(document.getElementById('month-selector').value);
+            const calendarGrid = document.getElementById('calendar-grid');
+            calendarGrid.innerHTML = '';
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startDayIndex = firstDay.getDay();
+            const totalDays = lastDay.getDate();
+
+            for (let i = 0; i < startDayIndex; i++) {
+                calendarGrid.innerHTML += `<div class="bg-transparent rounded-xl border border-dashed border-slate-200 min-h-[140px] opacity-50"></div>`;
+            }
+
+            for (let day = 1; day <= totalDays; day++) {
+                const currentDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayPosts = window.appState.posts.filter(p => p.date === currentDateStr);
+
+                const cell = document.createElement('div');
+                cell.className = `relative min-h-[140px] bg-white border border-slate-200 rounded-xl p-2 transition-all group flex flex-col hover:border-[var(--brand)]`;
+                
+                cell.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-semibold text-slate-500 text-sm">${day}</span>
+                        <button onclick="openNewPostPanel('${currentDateStr}')" class="opacity-0 group-hover:opacity-100 text-[var(--brand)] hover:bg-[var(--brand-light)] p-1 rounded transition-all" title="Añadir Post">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+
+                const postsContainer = document.createElement('div');
+                postsContainer.className = 'flex flex-col gap-2 flex-1';
+
+                dayPosts.forEach(post => {
+                    const pillar = getPillar(post.pillarId);
+                    const textColor = getContrastYIQ(pillar.color);
+                    
+                    const postEl = document.createElement('div');
+                    postEl.className = 'cursor-pointer rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-black/5 fade-in';
+                    postEl.style.backgroundColor = pillar.color;
+                    
+                    postEl.innerHTML = `
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-sm bg-black/10 ${textColor}">${post.format}</span>
+                        </div>
+                        <p class="text-xs font-semibold leading-tight line-clamp-2 ${textColor}">${post.title}</p>
+                    `;
+                    postEl.onclick = () => openPanelView(post.id);
+                    postsContainer.appendChild(postEl);
+                });
+
+                cell.appendChild(postsContainer);
+                calendarGrid.appendChild(cell);
+            }
+        }
+
+        window.renderList = function() {
+            const year = parseInt(document.getElementById('year-selector').value);
+            const month = parseInt(document.getElementById('month-selector').value);
+            const listGrid = document.getElementById('list-grid');
+            const emptyState = document.getElementById('list-empty-state');
+            
+            listGrid.innerHTML = '';
+            
+            const monthPosts = window.appState.posts.filter(p => {
+                const [pYear, pMonth] = p.date.split('-');
+                return parseInt(pYear) === year && parseInt(pMonth) === month + 1;
+            }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            if(monthPosts.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+                
+                monthPosts.forEach(post => {
+                    const pillar = getPillar(post.pillarId);
+                    const textColor = getContrastYIQ(pillar.color);
+                    const [y, m, d] = post.date.split('-');
+                    
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-[var(--brand-light)] transition-colors cursor-pointer group";
+                    tr.onclick = () => openPanelView(post.id);
+                    
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">${parseInt(d)} ${mesesNombres[parseInt(m)-1]}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${post.format}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold" style="background-color: ${pillar.color}; color: ${textColor === 'text-white' ? '#fff' : '#1e293b'}">
+                                ${pillar.name}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-800 font-medium">
+                            ${post.title}
+                            ${post.notes ? `<i data-lucide="file-text" class="w-3 h-3 inline text-yellow-500 ml-1" title="Contiene notas"></i>` : ''}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                            <button class="text-[var(--brand)] hover:text-[var(--brand-hover)] opacity-0 group-hover:opacity-100 transition-opacity">Ver</button>
+                        </td>
+                    `;
+                    listGrid.appendChild(tr);
+                });
+            }
+        }
+
+        // --- PANEL DE CONTROL ---
+        const sidePanel = document.getElementById('side-panel');
+        const panelOverlay = document.getElementById('panel-overlay');
+
+        window.openPanel = function() {
+            sidePanel.classList.remove('translate-x-[100%]');
+            panelOverlay.classList.remove('hidden');
+            setTimeout(() => panelOverlay.classList.remove('opacity-0'), 10);
+        }
+
+        window.closePanel = function() {
+            sidePanel.classList.add('translate-x-[100%]');
+            panelOverlay.classList.add('opacity-0');
+            setTimeout(() => panelOverlay.classList.add('hidden'), 300);
+            window.appState.currentEditingId = null;
+        }
+
+        window.openPanelView = function(postId) {
+            window.appState.currentEditingId = postId;
+            const post = window.appState.posts.find(p => p.id === postId);
+            const pillar = getPillar(post.pillarId);
+            const textColor = getContrastYIQ(pillar.color);
+
+            const [y, m, d] = post.date.split('-');
+            document.getElementById('view-date').innerText = `${parseInt(d)} de ${mesesNombres[parseInt(m)-1]}, ${y}`;
+            document.getElementById('view-format').innerText = post.format;
+            document.getElementById('view-title').innerText = post.title;
+            document.getElementById('view-copy').innerText = post.copy || 'Sin texto redactado.';
+            document.getElementById('view-notes').innerText = post.notes || 'No hay notas adicionales.';
+            
+            const pillarBadge = document.getElementById('view-pillar');
+            pillarBadge.innerText = pillar.name;
+            pillarBadge.style.backgroundColor = pillar.color;
+            pillarBadge.style.color = textColor === 'text-white' ? '#fff' : '#1e293b';
+
+            document.getElementById('panel-main-title').innerText = "Detalle de Publicación";
+            document.getElementById('panel-view').classList.remove('hidden');
+            document.getElementById('panel-edit').classList.add('hidden');
+            openPanel();
+        }
+
+        window.toggleEditMode = function() {
+            const post = window.appState.posts.find(p => p.id === window.appState.currentEditingId);
+            
+            document.getElementById('edit-title').value = post.title;
+            document.getElementById('edit-date').value = post.date;
+            document.getElementById('edit-format').value = post.format;
+            document.getElementById('edit-pillar').value = post.pillarId;
+            document.getElementById('edit-copy').value = post.copy || '';
+            document.getElementById('edit-notes').value = post.notes || '';
+
+            document.getElementById('panel-main-title').innerText = "Editar Publicación";
+            document.getElementById('panel-view').classList.add('hidden');
+            document.getElementById('panel-edit').classList.remove('hidden');
+        }
+
+        window.openNewPostPanel = function(prefilledDate = '') {
+            window.appState.currentEditingId = null; 
+            
+            const mSelect = document.getElementById('month-selector').value;
+            const ySelect = document.getElementById('year-selector').value;
+            const defaultDate = `${ySelect}-${String(parseInt(mSelect)+1).padStart(2,'0')}-01`;
+
+            document.getElementById('edit-title').value = '';
+            document.getElementById('edit-date').value = prefilledDate || defaultDate;
+            document.getElementById('edit-format').value = '🖼️ Post';
+            if(window.appState.pillars.length > 0) document.getElementById('edit-pillar').value = window.appState.pillars[0].id;
+            document.getElementById('edit-copy').value = '';
+            document.getElementById('edit-notes').value = '';
+
+            document.getElementById('panel-main-title').innerText = "Nueva Publicación";
+            document.getElementById('panel-view').classList.add('hidden');
+            document.getElementById('panel-edit').classList.remove('hidden');
+            openPanel();
+        }
+
+        window.savePost = async function() {
+            if (!auth.currentUser) return showCustomConfirm("Error", "No estás conectado a la base de datos.", null, true);
+            
+            const title = document.getElementById('edit-title').value.trim();
+            const date = document.getElementById('edit-date').value;
+            const format = document.getElementById('edit-format').value;
+            const pillarId = document.getElementById('edit-pillar').value;
+            const copy = document.getElementById('edit-copy').value.trim();
+            const notes = document.getElementById('edit-notes').value.trim();
+
+            if (!title || !date) return showCustomConfirm("Atención", "Ingresa al menos un título y una fecha.", null, true);
+
+            const postId = window.appState.currentEditingId || 'post_' + Date.now();
+            const postData = { title, date, format, pillarId, copy, notes };
+
+            try {
+                await setDoc(doc(db, ...basePath, 'posts', postId), postData);
+                const [year, month] = date.split('-');
+                document.getElementById('year-selector').value = year;
+                document.getElementById('month-selector').value = parseInt(month) - 1;
+                closePanel();
+            } catch (e) { console.error("Error al guardar", e); }
+        }
+
+        window.cancelEdit = function() {
+            if (window.appState.currentEditingId) openPanelView(window.appState.currentEditingId);
+            else closePanel();
+        }
+
+        // --- GESTIÓN DE PILARES ---
+        const pillarModal = document.getElementById('pillar-modal');
+        const pillarModalContent = document.getElementById('pillar-modal-content');
+
+        window.openPillarModal = function() {
+            renderPillarsEditList();
+            pillarModal.classList.remove('hidden');
+            setTimeout(() => {
+                pillarModal.classList.remove('opacity-0');
+                pillarModalContent.classList.remove('scale-95');
+            }, 10);
+        }
+
+        window.closePillarModal = function() {
+            pillarModal.classList.add('opacity-0');
+            pillarModalContent.classList.add('scale-95');
+            setTimeout(() => pillarModal.classList.add('hidden'), 300);
+        }
+
+        window.renderPillarsEditList = function() {
+            const list = document.getElementById('pillar-edit-list');
+            list.innerHTML = '';
+            window.appState.pillars.forEach(pillar => {
+                list.innerHTML += `
+                    <div class="flex items-center gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm fade-in">
+                        <input type="color" value="${pillar.color}" onchange="updatePillarColor('${pillar.id}', this.value)" class="color-picker border border-slate-200">
+                        <input type="text" value="${pillar.name}" onchange="updatePillarName('${pillar.id}', this.value)" class="flex-1 border-none bg-transparent font-medium text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[var(--brand-light)] rounded px-2 py-1">
+                        <button onclick="confirmDeletePillar('${pillar.id}')" class="text-red-400 hover:text-red-600 p-1 transition-colors" title="Eliminar Pilar">
+                            <i data-lucide="trash" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        window.addNewPillar = async function() {
+            if (!auth.currentUser) return;
+            const nameInput = document.getElementById('new-pillar-name');
+            const colorInput = document.getElementById('new-pillar-color');
+            if(!nameInput.value.trim()) return;
+
+            const newId = 'pil_' + Date.now();
+            await setDoc(doc(db, ...basePath, 'pillars', newId), {
+                name: nameInput.value.trim(),
+                color: colorInput.value
+            });
+            nameInput.value = '';
+        }
+
+        window.updatePillarName = async function(id, newName) {
+            if (!auth.currentUser || !newName.trim()) return;
+            const p = window.appState.pillars.find(p => p.id === id);
+            if(p) await setDoc(doc(db, ...basePath, 'pillars', id), { name: newName.trim(), color: p.color });
+        }
+
+        window.updatePillarColor = async function(id, newColor) {
+            if (!auth.currentUser) return;
+            const p = window.appState.pillars.find(p => p.id === id);
+            if(p) await setDoc(doc(db, ...basePath, 'pillars', id), { name: p.name, color: newColor });
+        }
+
+
+        // --- MODAL CUSTOM PARA ALERTAS Y ELIMINAR ---
+        const cModal = document.getElementById('confirm-modal');
+        const cContent = document.getElementById('confirm-content');
+        const cTitle = document.getElementById('confirm-title');
+        const cMsg = document.getElementById('confirm-msg');
+        const cBtn = document.getElementById('confirm-action-btn');
+
+        window.showCustomConfirm = function(title, msg, onConfirmCallback, isAlertOnly = false) {
+            cTitle.innerText = title;
+            cMsg.innerText = msg;
+            
+            if(isAlertOnly) {
+                cBtn.classList.add('hidden');
+            } else {
+                cBtn.classList.remove('hidden');
+                cBtn.onclick = () => {
+                    onConfirmCallback();
+                    closeConfirmModal();
+                };
+            }
+
+            cModal.classList.remove('hidden');
+            setTimeout(() => {
+                cModal.classList.remove('opacity-0');
+                cContent.classList.remove('scale-95');
+            }, 10);
+        }
+
+        window.closeConfirmModal = function() {
+            cModal.classList.add('opacity-0');
+            cContent.classList.add('scale-95');
+            setTimeout(() => cModal.classList.add('hidden'), 200);
+        }
+
+        window.confirmDeletePost = function() {
+            showCustomConfirm("Eliminar Publicación", "¿Seguro que quieres borrar este contenido? No podrás recuperarlo.", async () => {
+                if(!auth.currentUser) return;
+                await deleteDoc(doc(db, ...basePath, 'posts', window.appState.currentEditingId));
+                closePanel();
+            });
+        }
+
+        window.confirmDeletePillar = function(id) {
+            if(window.appState.posts.some(post => post.pillarId === id)) {
+                return showCustomConfirm("No se puede eliminar", "Hay publicaciones usando este pilar. Cámbialas de pilar primero antes de borrarlo.", null, true);
+            }
+            showCustomConfirm("Eliminar Pilar", "¿Borrar este pilar de tu estrategia?", async () => {
+                if(!auth.currentUser) return;
+                await deleteDoc(doc(db, ...basePath, 'pillars', id));
+                renderPillarsEditList();
+            });
+        }
+
+        // --- ARRANQUE ---
+        initMonthSelector();
+        lucide.createIcons();
+
+    </script>
+</body>
+</html>
